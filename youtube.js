@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         youtube视频捕获下载
 // @namespace    https://github.com/CH3NGYZ/youtube-downloader-tampermonkey
-// @version      0.8.2
+// @version      0.8.3
 // @description  https://github.com/CH3NGYZ/youtube-downloader-tampermonkey
 // @author       CH3NGYZ
 // @include      /^[^:/#?]*:\/\/([^#?/]*\.)?youtube\.com
