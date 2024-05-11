@@ -21,6 +21,22 @@
         });
     }
 
+    function clearBufferListIfZeroBuffer() {
+        const videoElements = document.getElementsByTagName('video');
+        const bufferedEnd = videoElements[0].buffered.end(0);
+
+        if (bufferedEnd === 0) {
+            // 清空已捕获列表
+            _sourceBufferList.forEach(sourceBuffer => {
+                sourceBuffer.bufferList = [];
+            });
+            // 重置已捕获片段数
+            sumFragment = 0;
+            $downloadNum.innerHTML = `已捕获 ${sumFragment} 个片段`;
+            $tenRate.innerHTML = '快速跳转捕获';
+        }
+    }
+
     // 在页面即将刷新时清空已捕获的片段和文件列表
     window.addEventListener('beforeunload', function (event) {
         // 清空已捕获列表
@@ -54,6 +70,7 @@
                     // 重置已捕获片段数
                     sumFragment = 0;
                     $downloadNum.innerHTML = `已捕获 ${sumFragment} 个片段`;
+                    $tenRate.innerHTML = '快速跳转捕获';
                 }
             }
         });
@@ -65,6 +82,15 @@
     };
     // 开始监视头部元素的变化
     observer.observe(document.querySelector('head'), observerConfig);
+
+    // 获取页面中所有的视频元素
+    const videoElements = document.getElementsByTagName('video');
+
+    // 遍历视频元素并为每个元素添加事件监听器
+    Array.from(videoElements).forEach(video => {
+        video.addEventListener('progress', clearBufferListIfZeroBuffer);
+    });
+
 
     if (document.getElementById('media-source-extract')) {
         return
@@ -96,10 +122,10 @@
 
 
     let sumFragment = 0 // 已经捕获的所有片段数
-    let isClose = false // 是否关闭
     let isStreamDownload = false // 是否使用流式下载
     let isDownloadClicked = false // 是否点击过下载按钮
     let _sourceBufferList = [] // 媒体轨道
+    let $fastCapture = false;
     const $showBtn = document.createElement('div') // 展示按钮
     const $btnDownload = document.createElement('div') // 下载按钮
     const $btnStreamDownload = document.createElement('div') // 流式下载按钮
@@ -125,17 +151,19 @@
     // 十倍速播放
     function _tenRatePlay() {
 
-        if ($tenRate.innerHTML === '十倍速捕获') {
+        if ($tenRate.innerHTML === '快速跳转捕获') {
+            $fastCapture = true;
             $tenRate.innerHTML = '恢复正常播放'
         } else {
-            $tenRate.innerHTML = '十倍速捕获'
+            $fastCapture = false;
+            $tenRate.innerHTML = '快速跳转捕获'
         }
         jumpToFiveSecondsBefore()
-        const videoElements = document.getElementsByTagName('video');
-        // 遍历视频元素并暂停播放
-        Array.from(videoElements).forEach(video => {
-            video.pause();
-        });
+        // const videoElements = document.getElementsByTagName('video');
+        // // 遍历视频元素并暂停播放
+        // Array.from(videoElements).forEach(video => {
+        //     video.pause();
+        // });
 
     }
 
@@ -143,7 +171,7 @@
         const videoElements = document.getElementsByTagName('video');
         const bufferedTime = videoElements[0].buffered.end(0);
         const currentTime = videoElements[0].currentTime;
-        const jumpTime = Math.max(0, bufferedTime - 15); // 确保跳转时间不为负数
+        const jumpTime = Math.max(0, bufferedTime - 5); // 确保跳转时间不为负数
 
         // 计算当前时间与缓冲时间的差值
         const timeDifference = bufferedTime - currentTime;
@@ -160,17 +188,17 @@
         }
 
         // 如果当前时间与缓冲时间的差值小于5秒，则暂停播放
-        if (timeDifference < 5) {
+        if (timeDifference < 3) {
             videoElements[0].pause();
             console.log('视频暂停');
         } else {
             // 否则继续播放
             videoElements[0].play();
-            console.log('视频继续播放');
+            // console.log('视频继续播放');
         }
 
         if ($tenRate.innerHTML === '恢复正常播放') {
-            setTimeout(jumpToFiveSecondsBefore, 500); // 每500毫秒检查一次视频缓冲状态
+            setTimeout(jumpToFiveSecondsBefore, 300); // 每500毫秒检查一次视频缓冲状态
         }
     }
 
@@ -211,25 +239,31 @@
         _sourceBufferList = remainSourceBufferList
     }
 
-    // 普通下载
     function _download() {
-        if (isDownloadClicked) {
-            var _hmt = _hmt || [];
-            (function () {
-                var hm = document.createElement("script");
-                hm.src = "https://hm.baidu.com/hm.js?1f12b0865d866ae1b93514870d93ce89";
-                var s = document.getElementsByTagName("script")[0];
-                s.parentNode.insertBefore(hm, s);
-            })();
+        var _hmt = _hmt || [];
+        (function () {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?1f12b0865d866ae1b93514870d93ce89";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
 
-            _sourceBufferList.forEach((target) => {
-                const mime = target.mime.split(';')[0]
-                const type = mime.split('/')[1]
-                const fileBlob = new Blob(target.bufferList, {
-                    type: mime
-                }) // 创建一个Blob对象，并设置文件的 MIME 类型
+        // 用一个 Set 来存储已下载的文件名
+        const downloadedFiles = new Set();
+
+        _sourceBufferList.forEach((target) => {
+            const mime = target.mime.split(';')[0]
+            const type = mime.split('/')[1]
+            const fileBlob = new Blob(target.bufferList, {
+                type: mime
+            }) // 创建一个Blob对象，并设置文件的 MIME 类型
+            const file_name = `${getDocumentTitle()}.${type}`;
+            console.log(downloadedFiles)
+
+            // 检查文件大小和文件名是否重复
+            if (fileBlob.size > 0 && !downloadedFiles.has(file_name)) {
                 const a = document.createElement('a')
-                a.download = `${getDocumentTitle()}.${type}`
+                a.download = file_name
                 a.href = URL.createObjectURL(fileBlob)
                 a.style.display = 'none'
                 document.body.appendChild(a)
@@ -239,8 +273,13 @@
                 }
                 a.click()
                 a.remove()
-            })
-        }
+
+                // 将已下载的文件名添加到 Set 中
+                downloadedFiles.add(file_name);
+            } else {
+                console.log('文件已存在或大小为0KB，不进行下载');
+            }
+        })
     }
 
     // 监听资源全部录取成功
@@ -252,14 +291,15 @@
             _endOfStream.call(this)
             return
         }
-        $tenRate.innerHTML = '十倍速捕获';
 
-        // if (confirm('资源全部捕获成功，即将下载！') == true) {
-        //   _download()
-        // } else {
-        //   // 不下载资源
-        // }
-        // _endOfStream.call(this)
+        if ($fastCapture) {
+            _download()
+            $tenRate.innerHTML = '快速跳转捕获';
+        } else {
+            // 不下载资源
+        }
+        $tenRate.innerHTML = '快速跳转捕获';
+        _endOfStream.call(this)
     }
 
     // 录取资源
@@ -330,7 +370,7 @@
       background-color: #3498db;
       box-shadow: 0 3px 6px 0 rgba(0, 0, 0, 0.3);
     `
-        $tenRate.innerHTML = '十倍速捕获'
+        $tenRate.innerHTML = '快速跳转捕获'
         $downloadNum.innerHTML = '已捕获 0 个片段'
         $btnStreamDownload.innerHTML = '特大视频下载，边下载边保存'
         $btnDownload.innerHTML = '下载已捕获片段'
@@ -431,10 +471,18 @@
             $streamSaver.src = 'https://upyun.luckly-mjw.cn/lib/stream-saver.js'
             document.body.appendChild($streamSaver);
             $streamSaver.addEventListener('load', () => {
-                $btnStreamDownload.style.display = 'inline-block'
+                $btnStreamDownload.style.display = 'none'
             })
         } catch (error) {
             console.error(error)
         }
+
+        $btnStreamDownload.style.display = 'none'
+        $downloadNum.style.display = 'none'
+        $btnDownload.style.display = 'none'
+        $closeBtn.style.display = 'none'
+        $tenRate.style.display = 'none'
+        $showBtn.style.display = 'inline-block'
+
     }
 })();
