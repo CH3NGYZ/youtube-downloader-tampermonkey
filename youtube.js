@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         youtube视频捕获下载
 // @namespace    https://github.com/CH3NGYZ/youtube-downloader-tampermonkey
-// @version      0.8.3
+// @version      0.8.5
 // @description  https://github.com/CH3NGYZ/youtube-downloader-tampermonkey
 // @author       CH3NGYZ
 // @include      /^[^:/#?]*:\/\/([^#?/]*\.)?youtube\.com
@@ -14,27 +14,53 @@
 
 (function () {
     'use strict';
-    // 中断所有下载操作
+    // 中断所有下载操作// ---------------------------------------------------------------
+    //重置list
+    function clearBufferListIfZeroBuffer() {
+        _sourceBufferList.forEach(sourceBuffer => {
+            sourceBuffer.bufferList = [];
+        });
+        // 重置已捕获片段数
+        sumFragment = 0;
+        $downloadNum.innerHTML = `已捕获 ${sumFragment} 个片段`;
+        $tenRate.innerHTML = '快速跳转捕获';
+    }
+
+    let previousURL = null;
+
+    // 创建 MutationObserver 实例
+    const observer = new MutationObserver((mutationsList, observer) => {
+        // 遍历每一个发生变化的 mutation
+        mutationsList.forEach(mutation => {
+            // 检查是否为 video 元素的 src 或 srcObject 属性发生了变化
+            if (
+                mutation.target.tagName === 'VIDEO' &&
+                (mutation.attributeName === 'src' || mutation.attributeName === 'srcObject')
+            ) {
+                const videoElement = mutation.target;
+                const newURL = videoElement.currentSrc || videoElement.srcObject?.url;
+
+                // 检查新链接是否与上一次的链接不同
+                if (newURL !== previousURL) {
+                    clearBufferListIfZeroBuffer();
+                    console.log('检测到新视频,清空捕获:', newURL);
+                    previousURL = newURL;
+                }
+            }
+        });
+    });
+
+    // 监视整个文档
+    observer.observe(document.documentElement, {
+        attributes: true,
+        childList: true,
+        subtree: true
+    });
+
     function abortDownloads() {
         _sourceBufferList.forEach(sourceBuffer => {
             sourceBuffer.streamWriter && sourceBuffer.streamWriter.abort();
         });
-    }
-
-    function clearBufferListIfZeroBuffer() {
-        const videoElements = document.getElementsByTagName('video');
-        const bufferedEnd = videoElements[0].buffered.end(0);
-
-        if (bufferedEnd === 0) {
-            // 清空已捕获列表
-            _sourceBufferList.forEach(sourceBuffer => {
-                sourceBuffer.bufferList = [];
-            });
-            // 重置已捕获片段数
-            sumFragment = 0;
-            $downloadNum.innerHTML = `已捕获 ${sumFragment} 个片段`;
-            $tenRate.innerHTML = '快速跳转捕获';
-        }
     }
 
     // 在页面即将刷新时清空已捕获的片段和文件列表
@@ -48,41 +74,6 @@
         // 重置已捕获片段数
         sumFragment = 0;
     });
-
-    // 保存当前页面的URL
-    let currentURL = window.location.href;
-    // 创建 MutationObserver 实例
-    const observer = new MutationObserver(function (mutationsList, observer) {
-        // 监听到页面内容变化时的处理逻辑
-        mutationsList.forEach(mutation => {
-            // 检查是否有URL变化
-            if (mutation.type === 'childList' && mutation.target.nodeName === 'HEAD') {
-                // 获取最新的页面URL
-                const newURL = window.location.href;
-                // 判断页面URL是否发生变化
-                if (newURL !== currentURL) {
-                    // 更新当前页面的URL
-                    currentURL = newURL;
-                    // 清空已捕获列表
-                    _sourceBufferList.forEach(sourceBuffer => {
-                        sourceBuffer.bufferList = []
-                    });
-                    // 重置已捕获片段数
-                    sumFragment = 0;
-                    $downloadNum.innerHTML = `已捕获 ${sumFragment} 个片段`;
-                    $tenRate.innerHTML = '快速跳转捕获';
-                }
-            }
-        });
-    });
-
-    // 配置 MutationObserver，监视头部元素变化
-    const observerConfig = {
-        childList: true
-    };
-    // 开始监视头部元素的变化
-    observer.observe(document.querySelector('head'), observerConfig);
-
     // 获取页面中所有的视频元素
     const videoElements = document.getElementsByTagName('video');
 
@@ -90,6 +81,8 @@
     Array.from(videoElements).forEach(video => {
         video.addEventListener('progress', clearBufferListIfZeroBuffer);
     });
+
+    // ---------------------------------------------------------------------------------------
 
 
     if (document.getElementById('media-source-extract')) {
@@ -149,16 +142,18 @@
     " src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIBAMAAABfdrOtAAAAElBMVEUAAAD///////////////////8+Uq06AAAABXRSTlMA2kCAv5tF5NoAAAErSURBVHja7dzNasJAFIbhz8Tu7R0Eq/vQNHuxzL6YnPu/ldYpAUckxJ8zSnjfdTIPzHrOUawJdqmDJre1S/X7avigbM08kMgMSmt+iPWKbcwTsb3+KswXseOFLb2RnaTgjXTxtpwRq7XMgWz9kZ8cSKcwE6SX+SMGAgICAvJCyHdz2ud0pEx+/BpFaj2kEgQEBAQEBAQEBOT1kXWSkhbvk1vptOLs1LEWNrmVRgIBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBeTayTqpufogxduqM3q2AgICAgICAgICA3IOko4ZXkB/pqOHzhyZBQEBAQLIieVahtDNBDnrLgZT+yC4HUkmtN9JnWUiVZbVWliVhseCJdPqvCH5IV2tQNl4r6Bod+wWq9eeDik+xFQAAAABJRU5ErkJggg==">`
 
     // 十倍速播放
-    function _tenRatePlay() {
+    function _fastJumpCapture() {
 
         const videoElements = document.getElementsByTagName('video');
         const bufferedTime = videoElements[0].buffered.end(0);
 
         if ($tenRate.innerHTML === '快速跳转捕获') {
             $fastCapture = true;
+
             if (bufferedTime === videoElements[0].duration) {
                 console.log("已经加载完毕, 直接下载")
                 _download();
+                $fastCapture = false;
                 $tenRate.innerHTML = '快速跳转捕获';
             } else {
                 $tenRate.innerHTML = '恢复正常播放'
@@ -168,19 +163,13 @@
             $tenRate.innerHTML = '快速跳转捕获'
         }
         jumpToFiveSecondsBefore()
-        // const videoElements = document.getElementsByTagName('video');
-        // // 遍历视频元素并暂停播放
-        // Array.from(videoElements).forEach(video => {
-        //     video.pause();
-        // });
-
     }
 
     function jumpToFiveSecondsBefore() {
         const videoElements = document.getElementsByTagName('video');
         const bufferedTime = videoElements[0].buffered.end(0);
         const currentTime = videoElements[0].currentTime;
-        const jumpTime = Math.max(0, bufferedTime - 5); // 确保跳转时间不为负数
+        let jumpTime = Math.max(0, bufferedTime - 5); // 确保跳转时间不为负数
 
         // 计算当前时间与缓冲时间的差值
         const timeDifference = bufferedTime - currentTime;
@@ -189,10 +178,10 @@
         if (typeof jumpToFiveSecondsBefore.lastBufferedTime === 'undefined' || jumpToFiveSecondsBefore.lastBufferedTime !== bufferedTime) {
             // 更新上一次的缓冲时间
             jumpToFiveSecondsBefore.lastBufferedTime = bufferedTime;
-
-            // 使用 MediaSource API 将视频跳转到指定时间点
-            videoElements[0].currentTime = jumpTime;
-
+            // 跳转到指定时间点
+            if (jumpTime > currentTime) {
+                videoElements[0].currentTime = jumpTime;
+            }
             console.log(jumpTime);
         }
 
@@ -207,10 +196,9 @@
         }
 
         if ($tenRate.innerHTML === '恢复正常播放') {
-            setTimeout(jumpToFiveSecondsBefore, 300); // 每500毫秒检查一次视频缓冲状态
+            setTimeout(jumpToFiveSecondsBefore, 500); // 每500毫秒检查一次视频缓冲状态
         }
     }
-
 
 
     // 获取顶部 window title，因可能存在跨域问题，故使用 try catch 进行保护
@@ -257,9 +245,6 @@
             s.parentNode.insertBefore(hm, s);
         })();
 
-        // 用一个 Map 来存储已下载的文件信息，包括文件名和大小
-        const downloadedFiles = new Map();
-
         _sourceBufferList.forEach((target) => {
             const mime = target.mime.split(';')[0];
             const type = mime.split('/')[1];
@@ -270,7 +255,7 @@
             const file_size = fileBlob.size;
 
             // 检查文件大小和文件名是否重复
-            if (file_size > 0 && (!downloadedFiles.has(file_name) || downloadedFiles.get(file_name) !== file_size)) {
+            if (file_size > 0) {
                 const a = document.createElement('a');
                 a.download = file_name;
                 a.href = URL.createObjectURL(fileBlob);
@@ -282,11 +267,8 @@
                 };
                 a.click();
                 a.remove();
-
-                // 将已下载的文件名和大小添加到 Map 中
-                downloadedFiles.set(file_name, file_size);
             } else {
-                console.log('文件已存在或大小为0KB，不进行下载');
+                console.log('文件大小为0KB，不进行下载');
             }
         });
     }
@@ -296,7 +278,7 @@
     let _endOfStream = window.MediaSource.prototype.endOfStream
     window.MediaSource.prototype.endOfStream = function endOfStream() {
         if (isStreamDownload) {
-            alert('资源全部捕获成功，即将下载！')
+            $tenRate.innerHTML = '快速跳转捕获';
             setTimeout(_streamDownload) // 等待 MediaSource 状态变更
             _endOfStream.call(this)
             return
@@ -304,12 +286,9 @@
 
         if ($fastCapture) {
             _download()
-            $tenRate.innerHTML = '快速跳转捕获';
-        } else {
-            // 不下载资源
+            _endOfStream.call(this);
+            return
         }
-        $tenRate.innerHTML = '快速跳转捕获';
-        _endOfStream.call(this)
     }
 
     // 录取资源
@@ -419,7 +398,7 @@
             isDownloadClicked = true;
             _download();
         });
-        $tenRate.addEventListener('click', _tenRatePlay)
+        $tenRate.addEventListener('click', _fastJumpCapture)
 
         // 关闭控制面板
         $closeBtn.addEventListener('click', function () {
@@ -429,7 +408,6 @@
             $closeBtn.style.display = 'none'
             $tenRate.style.display = 'none'
             $showBtn.style.display = 'inline-block'
-            isClose = true
         })
 
         // 显示控制面板
@@ -442,7 +420,6 @@
             $closeBtn.style.display = 'inline-block'
             $tenRate.style.display = 'inline-block'
             $showBtn.style.display = 'none'
-            isClose = false
         })
 
         // 启动流式下载
@@ -475,6 +452,7 @@
         $container.appendChild($tenRate)
         $container.appendChild($closeBtn)
         $container.appendChild($showBtn)
+
         // 加载 stream 流式下载器
         try {
             let $streamSaver = document.createElement('script')
@@ -487,12 +465,12 @@
             console.error(error)
         }
 
+        //不自动展开
         $btnStreamDownload.style.display = 'none'
         $downloadNum.style.display = 'none'
         $btnDownload.style.display = 'none'
         $closeBtn.style.display = 'none'
         $tenRate.style.display = 'none'
         $showBtn.style.display = 'inline-block'
-
     }
 })();
