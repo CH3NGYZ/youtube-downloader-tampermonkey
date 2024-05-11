@@ -1,13 +1,13 @@
 // ==UserScript==
-// @name         media-source-extract
-// @namespace    https://github.com/Momo707577045/media-source-extract
+// @name         youtube视频捕获下载
+// @namespace    https://github.com/CH3NGYZ/youtube-downloader-tampermonkey
 // @version      0.8.2
-// @description  https://github.com/Momo707577045/media-source-extract 配套插件
-// @author       Momo707577045
-// @include      youtube.com
+// @description  https://github.com/CH3NGYZ/youtube-downloader-tampermonkey
+// @author       CH3NGYZ
+// @include      /^[^:/#?]*:\/\/([^#?/]*\.)?youtube\.com
 // @exclude      http://blog.luckly-mjw.cn/tool-show/media-source-extract/player/player.html
-// @downloadURL	 https://blog.luckly-mjw.cn/tool-show/media-source-extract/media-source-extract.user.js
-// @updateURL	   https://blog.luckly-mjw.cn/tool-show/media-source-extract/media-source-extract.user.js
+// @downloadURL	 https://raw.githubusercontent.com/CH3NGYZ/youtube-downloader-tampermonkey/main/youtube.js
+// @updateURL	   https://raw.githubusercontent.com/CH3NGYZ/youtube-downloader-tampermonkey/main/youtube.js
 // @grant        none
 // @run-at document-start
 // ==/UserScript==
@@ -257,40 +257,40 @@
             s.parentNode.insertBefore(hm, s);
         })();
 
-        // 用一个 Set 来存储已下载的文件名
-        const downloadedFiles = new Set();
+        // 用一个 Map 来存储已下载的文件信息，包括文件名和大小
+        const downloadedFiles = new Map();
 
         _sourceBufferList.forEach((target) => {
-            const mime = target.mime.split(';')[0]
-            const type = mime.split('/')[1]
+            const mime = target.mime.split(';')[0];
+            const type = mime.split('/')[1];
             const fileBlob = new Blob(target.bufferList, {
                 type: mime
-            }) // 创建一个Blob对象，并设置文件的 MIME 类型
+            }); // 创建一个Blob对象，并设置文件的 MIME 类型
             const file_name = `${getDocumentTitle()}.${type}`;
-            console.log(downloadedFiles)
+            const file_size = fileBlob.size;
 
             // 检查文件大小和文件名是否重复
-            if (fileBlob.size > 0 && !downloadedFiles.has(file_name)) {
-                const a = document.createElement('a')
-                a.download = file_name
-                a.href = URL.createObjectURL(fileBlob)
-                a.style.display = 'none'
-                document.body.appendChild(a)
+            if (file_size > 0 && (!downloadedFiles.has(file_name) || downloadedFiles.get(file_name) !== file_size)) {
+                const a = document.createElement('a');
+                a.download = file_name;
+                a.href = URL.createObjectURL(fileBlob);
+                a.style.display = 'none';
+                document.body.appendChild(a);
                 // 禁止 click 事件冒泡，避免全局拦截
                 a.onclick = function (e) {
                     e.stopPropagation();
-                }
-                a.click()
-                a.remove()
+                };
+                a.click();
+                a.remove();
 
-                // 将已下载的文件名添加到 Set 中
-                downloadedFiles.add(file_name);
+                // 将已下载的文件名和大小添加到 Map 中
+                downloadedFiles.set(file_name, file_size);
             } else {
                 console.log('文件已存在或大小为0KB，不进行下载');
             }
-
-        })
+        });
     }
+
 
     // 监听资源全部录取成功
     let _endOfStream = window.MediaSource.prototype.endOfStream
