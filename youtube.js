@@ -151,9 +151,18 @@
     // 十倍速播放
     function _tenRatePlay() {
 
+        const videoElements = document.getElementsByTagName('video');
+        const bufferedTime = videoElements[0].buffered.end(0);
+
         if ($tenRate.innerHTML === '快速跳转捕获') {
             $fastCapture = true;
-            $tenRate.innerHTML = '恢复正常播放'
+            if (bufferedTime === videoElements[0].duration) {
+                console.log("已经加载完毕, 直接下载")
+                _download();
+                $tenRate.innerHTML = '快速跳转捕获';
+            } else {
+                $tenRate.innerHTML = '恢复正常播放'
+            }
         } else {
             $fastCapture = false;
             $tenRate.innerHTML = '快速跳转捕获'
@@ -279,6 +288,7 @@
             } else {
                 console.log('文件已存在或大小为0KB，不进行下载');
             }
+
         })
     }
 
