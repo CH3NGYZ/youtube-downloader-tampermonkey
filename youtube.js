@@ -124,20 +124,57 @@
 
     // 十倍速播放
     function _tenRatePlay() {
-        let playbackRate = 10
+
         if ($tenRate.innerHTML === '十倍速捕获') {
             $tenRate.innerHTML = '恢复正常播放'
         } else {
-            playbackRate = 1
             $tenRate.innerHTML = '十倍速捕获'
         }
+        jumpToFiveSecondsBefore()
+        const videoElements = document.getElementsByTagName('video');
+        // 遍历视频元素并暂停播放
+        Array.from(videoElements).forEach(video => {
+            video.pause();
+        });
 
-        let $domList = document.getElementsByTagName('video')
-        for (let i = 0, length = $domList.length; i < length; i++) {
-            const $dom = $domList[i]
-            $dom.playbackRate = playbackRate
+    }
+
+    function jumpToFiveSecondsBefore() {
+        const videoElements = document.getElementsByTagName('video');
+        const bufferedTime = videoElements[0].buffered.end(0);
+        const currentTime = videoElements[0].currentTime;
+        const jumpTime = Math.max(0, bufferedTime - 15); // 确保跳转时间不为负数
+
+        // 计算当前时间与缓冲时间的差值
+        const timeDifference = bufferedTime - currentTime;
+
+        // 检查缓冲时间是否发生变化
+        if (typeof jumpToFiveSecondsBefore.lastBufferedTime === 'undefined' || jumpToFiveSecondsBefore.lastBufferedTime !== bufferedTime) {
+            // 更新上一次的缓冲时间
+            jumpToFiveSecondsBefore.lastBufferedTime = bufferedTime;
+
+            // 使用 MediaSource API 将视频跳转到指定时间点
+            videoElements[0].currentTime = jumpTime;
+
+            console.log(jumpTime);
+        }
+
+        // 如果当前时间与缓冲时间的差值小于5秒，则暂停播放
+        if (timeDifference < 5) {
+            videoElements[0].pause();
+            console.log('视频暂停');
+        } else {
+            // 否则继续播放
+            videoElements[0].play();
+            console.log('视频继续播放');
+        }
+
+        if ($tenRate.innerHTML === '恢复正常播放') {
+            setTimeout(jumpToFiveSecondsBefore, 500); // 每500毫秒检查一次视频缓冲状态
         }
     }
+
+
 
     // 获取顶部 window title，因可能存在跨域问题，故使用 try catch 进行保护
     function getDocumentTitle() {
@@ -215,6 +252,7 @@
             _endOfStream.call(this)
             return
         }
+        $tenRate.innerHTML = '十倍速捕获';
 
         // if (confirm('资源全部捕获成功，即将下载！') == true) {
         //   _download()
