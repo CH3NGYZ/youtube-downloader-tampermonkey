@@ -407,7 +407,10 @@
         $tenRate.style.display = 'none'
         $showBtn.style.display = 'inline-block'
     }
+
     let previousURL = null;
+
+    let lastRefreshTime = Date.now(); // 记录上次刷新的时间
 
     // 创建 MutationObserver 实例
     const observer = new MutationObserver((mutationsList, observer) => {
@@ -421,10 +424,11 @@
                 const videoElement = mutation.target;
                 const newURL = videoElement.currentSrc || (videoElement.srcObject ? videoElement.srcObject.url : undefined);
 
-                // 检查新链接是否与上一次的链接不同
-                if (newURL !== previousURL && newURL !== undefined && previousURL !== undefined) {
+                // 检查新链接是否与上一次的链接不同，并且距离上次刷新超过2秒
+                if (newURL !== previousURL && newURL !== undefined && previousURL !== undefined && (Date.now() - lastRefreshTime) > 2000) {
                     console.log('检测到新视频, 刷新:', newURL);
                     location.reload();
+                    lastRefreshTime = Date.now(); // 更新刷新时间
                 }
                 previousURL = newURL;
             }
@@ -440,5 +444,4 @@
             attributeFilter: ['src', 'srcObject']
         });
     });
-
 })();
