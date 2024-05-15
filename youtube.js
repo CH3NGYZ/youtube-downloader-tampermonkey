@@ -4,7 +4,7 @@
 // @version      0.8.5
 // @description  https://github.com/CH3NGYZ/youtube-downloader-tampermonkey
 // @author       CH3NGYZ
-// @include      /^[^:/#?]*:\/\/([^#?/]*\.)?youtube\.com
+// @include      /^[^:/#?]*:\/\/([^#?/]*\.)?www\.youtube\.com\/watch
 // @exclude      http://blog.luckly-mjw.cn/tool-show/media-source-extract/player/player.html
 // @downloadURL	 https://raw.githubusercontent.com/CH3NGYZ/youtube-downloader-tampermonkey/main/youtube.js
 // @updateURL	   https://raw.githubusercontent.com/CH3NGYZ/youtube-downloader-tampermonkey/main/youtube.js
@@ -14,76 +14,6 @@
 
 (function () {
     'use strict';
-    // 中断所有下载操作// ---------------------------------------------------------------
-    //重置list
-    function clearBufferListIfZeroBuffer() {
-        _sourceBufferList.forEach(sourceBuffer => {
-            sourceBuffer.bufferList = [];
-        });
-        // 重置已捕获片段数
-        sumFragment = 0;
-        $downloadNum.innerHTML = `已捕获 ${sumFragment} 个片段`;
-        $tenRate.innerHTML = '快速跳转捕获';
-    }
-
-    let previousURL = null;
-
-    // 创建 MutationObserver 实例
-    const observer = new MutationObserver((mutationsList, observer) => {
-        // 遍历每一个发生变化的 mutation
-        mutationsList.forEach(mutation => {
-            // 检查是否为 video 元素的 src 或 srcObject 属性发生了变化
-            if (
-                mutation.target.tagName === 'VIDEO' &&
-                (mutation.attributeName === 'src' || mutation.attributeName === 'srcObject')
-            ) {
-                const videoElement = mutation.target;
-                const newURL = videoElement.currentSrc || videoElement.srcObject?.url;
-
-                // 检查新链接是否与上一次的链接不同
-                if (newURL !== previousURL) {
-                    clearBufferListIfZeroBuffer();
-                    console.log('检测到新视频,清空捕获:', newURL);
-                    previousURL = newURL;
-                }
-            }
-        });
-    });
-
-    // 监视整个文档
-    observer.observe(document.documentElement, {
-        attributes: true,
-        childList: true,
-        subtree: true
-    });
-
-    function abortDownloads() {
-        _sourceBufferList.forEach(sourceBuffer => {
-            sourceBuffer.streamWriter && sourceBuffer.streamWriter.abort();
-        });
-    }
-
-    // 在页面即将刷新时清空已捕获的片段和文件列表
-    window.addEventListener('beforeunload', function (event) {
-        // 清空已捕获列表
-        _sourceBufferList.forEach(sourceBuffer => {
-            sourceBuffer.bufferList = [];
-        });
-        // 中断所有下载操作
-        abortDownloads();
-        // 重置已捕获片段数
-        sumFragment = 0;
-    });
-    // 获取页面中所有的视频元素
-    const videoElements = document.getElementsByTagName('video');
-
-    // 遍历视频元素并为每个元素添加事件监听器
-    Array.from(videoElements).forEach(video => {
-        video.addEventListener('progress', clearBufferListIfZeroBuffer);
-    });
-
-    // ---------------------------------------------------------------------------------------
-
 
     if (document.getElementById('media-source-extract')) {
         return
@@ -113,7 +43,7 @@
         }
     }, 1000)
 
-
+    let $isOpenPanel = false; //是否打开了panel
     let sumFragment = 0 // 已经捕获的所有片段数
     let isStreamDownload = false // 是否使用流式下载
     let isDownloadClicked = false // 是否点击过下载按钮
@@ -281,6 +211,8 @@
             $tenRate.innerHTML = '快速跳转捕获';
             setTimeout(_streamDownload) // 等待 MediaSource 状态变更
             _endOfStream.call(this)
+            isStreamDownload = false;
+            console.log("流式下载完毕")
             return
         }
 
@@ -408,6 +340,7 @@
             $closeBtn.style.display = 'none'
             $tenRate.style.display = 'none'
             $showBtn.style.display = 'inline-block'
+            $isOpenPanel = false;
         })
 
         // 显示控制面板
@@ -420,6 +353,7 @@
             $closeBtn.style.display = 'inline-block'
             $tenRate.style.display = 'inline-block'
             $showBtn.style.display = 'none'
+            $isOpenPanel = true;
         })
 
         // 启动流式下载
@@ -434,14 +368,14 @@
             $btnDownload.style.display = 'none'
             $btnStreamDownload.style.display = 'none'
             _sourceBufferList.forEach(sourceBuffer => {
-                if (!sourceBuffer.streamWriter) {
-                    const type = sourceBuffer.mime.split(';')[0].split('/')[1]
-                    sourceBuffer.streamWriter = streamSaver.createWriteStream(`${getDocumentTitle()}.${type}`).getWriter()
-                    sourceBuffer.bufferList.forEach(buffer => {
-                        sourceBuffer.streamWriter.write(new Uint8Array(buffer));
-                    })
-                    sourceBuffer.bufferList = []
-                }
+                // if (!sourceBuffer.streamWriter) {
+                const type = sourceBuffer.mime.split(';')[0].split('/')[1]
+                sourceBuffer.streamWriter = streamSaver.createWriteStream(`${getDocumentTitle()}.${type}`).getWriter()
+                sourceBuffer.bufferList.forEach(buffer => {
+                    sourceBuffer.streamWriter.write(new Uint8Array(buffer));
+                })
+                sourceBuffer.bufferList = []
+                // }
             })
         })
 
@@ -473,4 +407,38 @@
         $tenRate.style.display = 'none'
         $showBtn.style.display = 'inline-block'
     }
+    let previousURL = null;
+
+    // 创建 MutationObserver 实例
+    const observer = new MutationObserver((mutationsList, observer) => {
+        // 遍历每一个发生变化的 mutation
+        mutationsList.forEach(mutation => {
+            // 检查是否为 video 元素的 src 或 srcObject 属性发生了变化
+            if (
+                mutation.target.tagName === 'VIDEO' &&
+                (mutation.attributeName === 'src' || mutation.attributeName === 'srcObject')
+            ) {
+                const videoElement = mutation.target;
+                const newURL = videoElement.currentSrc || (videoElement.srcObject ? videoElement.srcObject.url : undefined);
+
+                // 检查新链接是否与上一次的链接不同
+                if (newURL !== previousURL && newURL !== undefined && previousURL !== undefined) {
+                    console.log('检测到新视频, 刷新:', newURL);
+                    location.reload();
+                }
+                previousURL = newURL;
+            }
+        });
+    });
+
+    // 在页面完全加载完毕之后再运行这段
+    window.addEventListener('load', () => {
+        // 监视整个文档的变化
+        observer.observe(document, {
+            attributes: true,
+            subtree: true,
+            attributeFilter: ['src', 'srcObject']
+        });
+    });
+
 })();
